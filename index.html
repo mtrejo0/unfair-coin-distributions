@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unfair Coin Distribution Visualizer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'apple-blue': '#007AFF',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full flex flex-col p-4 sm:p-8 font-sans">
+    <div class="w-full bg-white rounded-2xl shadow-lg p-4 sm:p-8">
+        <h1 class="text-2xl sm:text-3xl font-semibold text-gray-800 mb-4 sm:mb-6">Unfair Coin Distribution Visualizer</h1>
+        <div id="controls" class="mb-4 sm:mb-8 flex flex-col sm:flex-row flex-wrap gap-4">
+            <div class="flex flex-col">
+                <label for="numFlips" class="text-sm font-medium text-gray-700 mb-1">Number of Flips (1-10000)</label>
+                <input type="number" id="numFlips" min="1" max="10000" value="100" class="w-full sm:w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-apple-blue">
+            </div>
+            <div class="flex flex-col">
+                <label for="numCoins" class="text-sm font-medium text-gray-700 mb-1">Number of Coins per Type (1-1000)</label>
+                <input type="number" id="numCoins" min="1" max="1000" value="10000" class="w-full sm:w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-apple-blue">
+            </div>
+            <button onclick="flipCoins()" class="w-full sm:w-auto px-4 py-2 bg-apple-blue text-white font-semibold rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
+                Flip Coins
+            </button>
+        </div>
+        <div class="mb-4">
+            <label for="coin1" class="text-sm font-medium text-gray-700 mb-1">Coin 1 (P(Heads) = <span id="coin1Value">0.5</span>)</label>
+            <input type="range" id="coin1" min="0" max="1" step="0.01" value="0.5" class="w-full">
+        </div>
+        <div class="mb-4">
+            <label for="coin2" class="text-sm font-medium text-gray-700 mb-1">Coin 2 (P(Heads) = <span id="coin2Value">0.75</span>)</label>
+            <input type="range" id="coin2" min="0" max="1" step="0.01" value="0.75" class="w-full">
+        </div>
+        <div class="mb-4">
+            <label for="coin3" class="text-sm font-medium text-gray-700 mb-1">Coin 3 (P(Heads) = <span id="coin3Value">0.9</span>)</label>
+            <input type="range" id="coin3" min="0" max="1" step="0.01" value="0.9" class="w-full">
+        </div>
+        <div id="charts" class="w-full flex flex-col gap-4">
+            <div id="chart1" class="w-full h-64 bg-gray-50 rounded-lg"></div>
+            <div id="chart2" class="w-full h-64 bg-gray-50 rounded-lg"></div>
+            <div id="chart3" class="w-full h-64 bg-gray-50 rounded-lg"></div>
+        </div>
+    </div>
+
+    <script>
+        function flipCoins() {
+            const numFlips = parseInt(document.getElementById('numFlips').value);
+            const numCoins = parseInt(document.getElementById('numCoins').value);
+            const coin1Prob = parseFloat(document.getElementById('coin1').value);
+            const coin2Prob = parseFloat(document.getElementById('coin2').value);
+            const coin3Prob = parseFloat(document.getElementById('coin3').value);
+
+            const results1 = flipMultipleCoins(numFlips, numCoins, coin1Prob);
+            const results2 = flipMultipleCoins(numFlips, numCoins, coin2Prob);
+            const results3 = flipMultipleCoins(numFlips, numCoins, coin3Prob);
+
+            visualizeResults(results1, numFlips, 'chart1', `Coin 1 (P(Heads) = ${coin1Prob.toFixed(2)})`);
+            visualizeResults(results2, numFlips, 'chart2', `Coin 2 (P(Heads) = ${coin2Prob.toFixed(2)})`);
+            visualizeResults(results3, numFlips, 'chart3', `Coin 3 (P(Heads) = ${coin3Prob.toFixed(2)})`);
+        }
+
+        function flipMultipleCoins(numFlips, numCoins, probability) {
+            return Array(numCoins).fill().map(() => flipCoin(numFlips, probability));
+        }
+
+        function flipCoin(numFlips, probability) {
+            let heads = 0;
+            for (let i = 0; i < numFlips; i++) {
+                if (Math.random() < probability) {
+                    heads++;
+                }
+            }
+            return heads;
+        }
+
+        function visualizeResults(results, numFlips, chartId, title) {
+            const chartContainer = document.getElementById(chartId);
+            const margin = {top: 40, right: 20, bottom: 50, left: 40};
+            const width = chartContainer.clientWidth - margin.left - margin.right;
+            const height = chartContainer.clientHeight - margin.top - margin.bottom;
+
+            d3.select(`#${chartId}`).selectAll("*").remove();
+
+            const svg = d3.select(`#${chartId}`)
+                .append("svg")
+                .attr("width", "100%")
+                .attr("height", "100%")
+                .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleLinear()
+                .domain([0, numFlips])
+                .range([0, width]);
+
+            const uniqueValues = [...new Set(results)];
+            const histogram = d3.histogram()
+                .value(d => d)
+                .domain(x.domain())
+                .thresholds(x.ticks(300));
+
+            const bins = histogram(results);
+
+            const y = d3.scaleLinear()
+                .range([height, 0])
+                .domain([0, d3.max(bins, d => d.length)]);
+
+            svg.selectAll("rect")
+                .data(bins)
+                .enter().append("rect")
+                .attr("x", d => x(d.x0) + 1)
+                .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+                .attr("y", d => y(d.length))
+                .attr("height", d => height - y(d.length))
+                .attr("fill", "steelblue");
+
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x));
+
+            svg.append("g")
+                .call(d3.axisLeft(y));
+
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", 0 - (margin.top / 2))
+                .attr("text-anchor", "middle")
+                .style("font-size", "14px")
+                .text(title);
+        }
+
+        // Update slider values
+        document.getElementById('coin1').addEventListener('input', function() {
+            document.getElementById('coin1Value').textContent = this.value;
+        });
+        document.getElementById('coin2').addEventListener('input', function() {
+            document.getElementById('coin2Value').textContent = this.value;
+        });
+        document.getElementById('coin3').addEventListener('input', function() {
+            document.getElementById('coin3Value').textContent = this.value;
+        });
+
+        // Initial flip
+        flipCoins();
+
+        // Add resize event listener
+        window.addEventListener('resize', flipCoins);
+    </script>
+</body>
+</html>
